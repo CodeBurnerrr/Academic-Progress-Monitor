@@ -1092,6 +1092,688 @@ class Student:
 '''
 
 
+class Admin(Student):
+    def __init__(self, cursor):
+        self.cursor = cursor
+        self.admin_login()
+
+    def admin_login(self):
+        attempts = 0  # Counter for tracking login attempts
+
+        while attempts < 3:  # Allow up to 3 attempts
+            print()
+            email = input("Enter Admin Email: ")
+            password = input("Enter Password: ")
+            print()
+            try:
+                # Query to find user by email
+                self.cursor.execute("SELECT password FROM admin_credentials WHERE email = %s;", (email,))
+                result = self.cursor.fetchone()
+
+                if result is None:
+                    raise EmailError("\033[91m{}\033[0m".format("Invalid Email!"))
+
+                stored_password = result[0]
+
+                if stored_password != password:
+                    raise PasswordError("\033[91m{}\033[0m".format("Invalid Password!"))
+
+            except (EmailError, PasswordError) as e:
+                print()
+                print(e.message)
+                attempts += 1
+                continue
+
+            else:
+                print()
+                print("\033[92m{}\033[0m".format("Login successful! Logged in as : "))
+                self.display_faculty_data(email)
+                self.admin_menu()
+                break
+
+        else:
+            print()
+            # print("Too many failed login attempts. Please try again later.")
+            print('Forgot password?\n1. Yes\n2. No')
+            pass_choice = int(input())
+            if pass_choice == 1:
+                emails.send_verification_code(email)
+                print("\033[92m{}\033[0m".format("Check the mail for the otp code and enter"))
+                user_otp = int(input('Enter the otp: '))
+                if user_otp == int(emails.verification_code):
+                    print('Enter the new password: ')
+                    self.change_password_admin(email)
+                else:
+                    print("\033[91m{}\033[0m".format("Wrong Otp"))
+
+            else:
+                exit()
+
+    def admin_menu(self):
+        while True:
+            print()
+            print(
+                "--------------------------------------------------------------------------------------------------------------------------")
+            print("1. Add Student")
+            print("2. Remove Student")
+            print("3. Update Student Details")
+            print("4. Add/Update Student Marks")
+            print("5. Display Student Information")
+            print("6. To view student progess report")
+            print("7. Go Back")
+            print(
+                "--------------------------------------------------------------------------------------------------------------------------")
+            print()
+            choice = input("Your choice: ")
+            if choice == '1':
+                self.add_student()
+            elif choice == '2':
+                self.remove_student()
+            elif choice == '3':
+                self.update_student()
+            elif choice == '4':
+                self.student_marks()
+            elif choice == '5':
+                self.display_student()
+            elif choice == '6':
+                count = 0
+                trial = 0
+                while True:
+                    try:
+                        if trial == 3:
+                            break
+                        Enrollment_no = int(input("Enter Student Enrollment no: "))
+                        self.cursor.execute(
+                            f"SELECT COUNT(*) FROM login_credentials WHERE enrollment_no = {Enrollment_no};")
+                        count = self.cursor.fetchone()[0]
+                        if count == 0:
+                            raise EnrollmentError("\033[91m{}\033[0m".format("Invalid enrollment number!"))
+                        else:
+                            break
+                    except (EnrollmentError) as e:
+                        print(e.message)
+                        trial += 1  # Increment the attempt counter
+                        continue
+
+                if trial == 3:
+                    break
+
+                self.stud_progress(Enrollment_no)
+            elif choice == '7':
+                print("\033[91m{}\033[0m".format("Exiting Admin Panel..."))
+                break
+            else:
+                print("\033[91m{}\033[0m".format("Please enter a valid choice."))
+
+    def display_faculty_data(self, email):
+        self.cursor.execute("SELECT email, name, shortname, department, subject FROM faculty_details WHERE email = %s;",
+                            (email,))
+        faculty_data = self.cursor.fetchone()
+
+        if faculty_data:
+            table = PrettyTable()
+            table.field_names = ["Email", "Name", "Short Name", "Department", "Subject"]
+            table.add_row(faculty_data)
+            print(table)
+        else:
+            print("\033[91m{}\033[0m".format("Faculty data not found."))
+
+    def generate_enrollment_no(self):
+        self.cursor.execute("SELECT MAX(enrollment_no) FROM student_details;")
+        last_record = self.cursor.fetchone()
+
+        if last_record and last_record[0]:
+            # If there is a record, increment the last enrollment number by 1
+            new_enrollment_no = str(int(last_record[0]) + 1)
+        else:
+            # If there are no records, start from the initial 8-digit number
+            new_enrollment_no = "10000001"  # Starting point
+
+        return new_enrollment_no
+
+    def generate_roll_no(self, batch):
+        self.cursor.execute(f"SELECT MAX(roll_no) FROM student_details WHERE batch = %s;", (batch,))
+        last_record = self.cursor.fetchone()
+
+        if last_record and last_record[0]:
+            try:
+                roll_no = int(last_record[0]) + 1
+            except ValueError:
+
+                roll_no = 1
+        else:
+            roll_no = 1
+
+        return roll_no
+
+    def check_enrollment_no(self):
+        attempt_count = 0
+
+        while attempt_count < 3:
+            enrollment_no = input("\nEnter the Enrollment Number of the student: ")
+
+            # Check for the existence of the enrollment number in the database
+            self.cursor.execute("SELECT * FROM student_details WHERE enrollment_no = %s;", (enrollment_no,))
+            if self.cursor.fetchone() is not None:
+                return enrollment_no  # Return the valid enrollment number
+            else:
+                print("\033[91m{}\033[0m".format("\nNo student found with the given enrollment number."))
+                attempt_count += 1
+
+        # If this point is reached, the user has failed all attempts
+        print("\033[91m{}\033[0m".format("\nFailed to enter a valid enrollment number in 3 attempts."))
+        return None
+
+    def add_student(self):
+        try:
+
+            ############################################################################################################
+            while True:
+                try:
+                    # Prompting for student details
+                    print()
+                    name = input("Enter Student Name: ")
+                    # Checking if the name consists of alphabets and spaces only
+                    if not all(x.isalpha() or x.isspace() for x in name):
+                        raise InvalidInputError(
+                            "\033[91m{}\033[0m".format("Name should consist of alphabets and spaces only."))
+                    else:
+                        break
+
+                except InvalidInputError as e:
+                    print()
+                    print(f"Failed to add student: {e}")
+
+            ############################################################################################################
+
+            while True:
+                try:
+                    print()
+                    print("Select Department:")
+                    departments = ['SY1', 'SY2', 'SY3']
+                    for idx, dept in enumerate(departments, 1):
+                        print(f"{idx}. {dept}")
+                    dept_choice = input("Enter your choice: ")
+                    if dept_choice.isdigit() and 1 <= int(dept_choice) <= len(departments):
+                        department = departments[int(dept_choice) - 1]
+                        break
+                    else:
+                        raise InvalidInputError("\033[91m{}\033[0m".format("Invalid choice for department."))
+
+                except InvalidInputError as e:
+                    print()
+                    print(f"Failed to add student: {e}")
+
+            ############################################################################################################
+            while True:
+                try:
+                    print()
+                    # Map each department to its relevant batches
+                    dept_to_batches = {
+                        'SY1': ['A1', 'A2', 'A3'],
+                        'SY2': ['B1', 'B2', 'B3'],
+                        'SY3': ['C1', 'C2', 'C3']
+                    }
+
+                    print("Select Batch:")
+                    # Fetch batches relevant to the selected department
+                    batches = dept_to_batches.get(department, [])
+                    for idx, batch in enumerate(batches, 1):
+                        print(f"{idx}. {batch}")
+                    batch_choice = input("Enter your choice: ")
+                    if batch_choice.isdigit() and 1 <= int(batch_choice) <= len(batches):
+                        batch = batches[int(batch_choice) - 1]
+                        break
+                    else:
+                        raise InvalidInputError("\033[91m{}\033[0m".format("Invalid choice for batch."))
+
+                except InvalidInputError as e:
+                    print()
+                    print(f"Failed to add student: {e}")
+
+            ############################################################################################################
+            while True:
+                try:
+                    print()
+                    # Branch selection logic
+                    print("Select Branch:")
+                    dept_to_branch = {
+                        'SY1': ['CE', 'IT', 'CSE'],
+                        'SY2': ['CST', 'CEA', 'CS&IT'],
+                        'SY3': ['AIML', 'AIDS', 'RAI']
+                    }
+                    branch = dept_to_branch.get(department, [])
+                    for idx, branches in enumerate(branch, 1):
+                        print(f"{idx}. {branches}")
+                    branch_choice = input("Enter your choice: ")
+                    if branch_choice.isdigit() and 1 <= int(branch_choice) <= len(branch):
+                        selected_branch = branch[int(branch_choice) - 1]
+                        print(selected_branch)
+                        break
+                    else:
+                        raise InvalidInputError("\033[91m{}\033[0m".format("Invalid choice for branch."))
+
+                except InvalidInputError as e:
+                    print()
+                    print(f"Failed to add student: {e}")
+
+            ############################################################################################################
+
+            roll_no = self.generate_roll_no(batch)
+
+            ############################################################################################################
+
+            email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+
+            while True:
+                try:
+                    print()
+                    # Prompt the user to enter an email address
+                    email = input("Enter student's email address: ")
+
+                    if re.match(email_pattern, email):
+                        print("Valid email address!")
+                        break
+                    else:
+                        raise InvalidInputError(
+                            "\033[91m{}\033[0m".format("Invalid email address. Please enter a valid email address."))
+
+                except InvalidInputError as e:
+                    print()
+                    print(f"Failed to add student: {e}")
+
+            ############################################################################################################
+
+            # Generate Enrollment Number
+            enrollment_no = self.generate_enrollment_no()
+
+            ############################################################################################################
+
+            # SQL Query to insert the student data into the database
+            query = """INSERT INTO student_details (name, enrollment_no, department, branch, batch, roll_no, email)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s);"""
+            # Executing the query
+
+            self.cursor.execute(query, (name, enrollment_no, department, selected_branch, batch, roll_no, email))
+
+            # insert statement for login_credentials
+            query_login_credentials = """INSERT INTO login_credentials (enrollment_no) VALUES (%s);"""
+            self.cursor.execute(query_login_credentials, (enrollment_no,))
+
+            # insert statements for marks tables
+            tables = ['t1_marks', 't2_marks', 't3_marks', 't4_marks', 'total_marks']
+            for table in tables:
+                query = f"""INSERT INTO {table} (enrollment_no) VALUES (%s);"""
+                self.cursor.execute(query, (enrollment_no,))
+
+            # Committing the transaction to the database
+            self.cursor.connection.commit()
+            print()
+            print("\033[92m{}\033[0m".format("Student added successfully."))
+            print()
+            print(f"Enrollment Number of {name}: {enrollment_no}")
+            print()
+
+
+        except Exception as e:
+            # Rolling back in case of error
+            self.cursor.connection.rollback()
+            print()
+            print(f"An error occurred: {e}")
+
+    def remove_student(self):
+        try:
+            enrollment_no = self.check_enrollment_no()
+            if enrollment_no is None:
+                print("Returning to admin menu...")  # Operation aborted
+                return
+
+            # SQL Query to delete the student record from the database
+            query = "DELETE FROM student_details WHERE enrollment_no = %s;"
+
+            # Checking if the student exists before attempting to delete
+            self.cursor.execute("SELECT * FROM student_details WHERE enrollment_no = %s;", (enrollment_no,))
+            if self.cursor.fetchone() is None:
+                print()
+                print("\033[91m{}\033[0m".format("No student found with the given enrollment number."))
+                return
+
+            # Executing the delete query
+            self.cursor.execute(query, (enrollment_no,))
+
+            for table_name in ['t1_marks', 't2_marks', 't3_marks', 't4_marks', 'total_marks', 'login_credentials']:
+                query_del = f"""
+                            DELETE FROM {table_name} WHERE enrollment_no = %s;
+                            """
+                self.cursor.execute(query_del, (enrollment_no,))
+
+            # Committing the transaction to the database
+            self.cursor.connection.commit()
+            print()
+            print("\033[91m{}\033[0m".format("Student removed successfully."))
+        except Exception as e:
+            # Rolling back in case of error
+            self.cursor.connection.rollback()
+            print()
+            print(f"An error occurred: {e}")
+
+    def update_student(self):
+        while True:
+            try:
+                enrollment_no = self.check_enrollment_no()
+                if enrollment_no is None:
+                    print("\033[91m{}\033[0m".format("Returning to admin menu..."))  # Operation aborted
+                    return
+
+                self.cursor.execute("SELECT COUNT(*) FROM student_details WHERE enrollment_no = %s;", (enrollment_no,))
+                if self.cursor.fetchone()[0] == 0:
+                    raise EnrollmentError("\033[91m{}\033[0m".format("Invalid enrollment number!"))
+
+                self.prompt_for_update(enrollment_no)
+                break
+
+            except Exception as e:
+                self.cursor.connection.rollback()
+                print()
+                print(f"Failed to update student detail: {e}")
+
+    def prompt_for_update(self, enrollment_no):
+        while True:
+            self.cursor.execute(f"SELECT batch from student_details WHERE enrollment_no = %s;", (enrollment_no,))
+            old_batch = self.cursor.fetchone()[0]
+            flag = False
+            print()
+            print(
+                "--------------------------------------------------------------------------------------------------------------------------")
+            print("Which detail would you like to update?")
+            print()
+            print("1. Name")
+            print("2. Department (will also require updating the batch and branch)")
+            print("3. Branch")
+            print("4. Batch")
+            print("5. Email")
+            print("6. Go back")
+            print(
+                "--------------------------------------------------------------------------------------------------------------------------")
+            print()
+            choice = input("Enter your choice (1-6): ")
+
+            if choice == '1':
+
+                new_value = input("Enter the new Name: ")
+                if not all(x.isalpha() or x.isspace() for x in new_value):
+                    raise InvalidInputError(
+                        "\033[91m{}\033[0m".format("Name should consist of alphabets and spaces only."))
+                column = 'name'
+                self.execute_update(column, new_value, enrollment_no, flag)
+                print()
+                print("\033[92m{}\033[0m".format("Update operation completed successfully."))
+
+            elif choice == '2':
+                new_department, new_batch, new_branch = self.prompt_for_department_and_batch_and_branch()
+                if new_batch == old_batch:
+                    flag = True
+                self.execute_update('department', new_department, enrollment_no, flag)
+                self.execute_update('batch', new_batch, enrollment_no, flag)
+                self.execute_update('branch', new_branch, enrollment_no, flag)
+                print()
+                print("\033[92m{}\033[0m".format("Update operation completed successfully."))
+
+            elif choice == '3':
+                self.cursor.execute(f"SELECT department from student_details WHERE enrollment_no = %s;",
+                                    (enrollment_no,))
+                depart = self.cursor.fetchone()[0]
+
+                new_value = self.prompt_for_branch(depart)
+                self.execute_update('branch', new_value, enrollment_no, flag)
+                print()
+                print("\033[92m{}\033[0m".format("Update operation completed successfully."))
+
+            elif choice == '4':
+                new_value = self.prompt_for_batch(enrollment_no)
+                if new_value == old_batch:
+                    flag = True
+                self.execute_update('batch', new_value, enrollment_no, flag)
+                print()
+                print("\033[92m{}\033[0m".format("Update operation completed successfully."))
+
+            elif choice == '5':
+                email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+
+                while True:
+                    try:
+                        # Prompt the user to enter an email address
+                        email = input("Enter new email: ")
+
+                        if re.match(email_pattern, email):
+                            self.execute_update('email', email, enrollment_no, flag)
+                            print("\033[92m{}\033[0m".format("Update operation completed successfully."))
+                            break
+                        else:
+                            raise InvalidInputError("\033[91m{}\033[0m".format(
+                                "Invalid email address. Please enter a valid email address."))
+
+                    except InvalidInputError as e:
+                        print()
+                        print(f"{e}")
+
+            elif choice == '6':
+                break
+
+            else:
+                print()
+                print("\033[91m{}\033[0m".format("Invalid choice. Operation cancelled."))
+
+    def execute_update(self, column, new_value, enrollment_no, flag):
+        if flag != True:
+            if column == 'batch':
+                roll_no = self.generate_roll_no(new_value)
+                query = f"UPDATE student_details SET roll_no = %s WHERE enrollment_no = %s;"
+                self.cursor.execute(query, (roll_no, enrollment_no))
+                self.cursor.connection.commit()
+
+        query = f"UPDATE student_details SET {column} = %s WHERE enrollment_no = %s;"
+        self.cursor.execute(query, (new_value, enrollment_no))
+        self.cursor.connection.commit()
+
+    def prompt_for_department_and_batch_and_branch(self):
+        print()
+        print("Select the new Department:")
+        departments = ['SY1', 'SY2', 'SY3']
+        for idx, dept in enumerate(departments, 1):
+            print(f"{idx}. {dept}")
+        dept_choice = input("Enter your choice: ")
+        if dept_choice.isdigit() and 1 <= int(dept_choice) <= len(departments):
+            new_department = departments[int(dept_choice) - 1]
+        else:
+            raise InvalidInputError("\033[91m{}\033[0m".format("Invalid choice for department."))
+
+        ################################################################################################################
+
+        new_batch = self.prompt_for_batch_based_on_department(new_department)
+        new_branch = self.prompt_for_branch_based_on_department(new_department)
+        return new_department, new_batch, new_branch
+
+    def prompt_for_branch(self, department):
+        return self.prompt_for_branch_based_on_department(department)
+
+    def prompt_for_batch_based_on_department(self, department):
+        dept_to_batches = {
+            'SY1': ['A1', 'A2', 'A3'],
+            'SY2': ['B1', 'B2', 'B3'],
+            'SY3': ['C1', 'C2', 'C3']
+        }
+        print()
+        print("Select the new Batch:")
+        batches = dept_to_batches[department]
+        for idx, batch in enumerate(batches, 1):
+            print(f"{idx}. {batch}")
+        batch_choice = input("Enter your choice: ")
+        if batch_choice.isdigit() and 1 <= int(batch_choice) <= len(batches):
+            return batches[int(batch_choice) - 1]
+        else:
+            raise InvalidInputError("\033[91m{}\033[0m".format("Invalid choice for batch."))
+
+    def prompt_for_branch_based_on_department(self, department):
+        print()
+        # Branch selection logic
+        print("Select Branch:")
+        dept_to_branch = {
+            'SY1': ['CE', 'IT', 'CSE'],
+            'SY2': ['CST', 'CEA', 'CS&IT'],
+            'SY3': ['AIML', 'AIDS', 'RAI']
+        }
+        branch = dept_to_branch.get(department, [])
+        for idx, branches in enumerate(branch, 1):
+            print(f"{idx}. {branches}")
+        branch_choice = input("Enter your choice: ")
+        if branch_choice.isdigit() and 1 <= int(branch_choice) <= len(branch):
+            return branch[int(branch_choice) - 1]
+        else:
+            raise InvalidInputError("\033[91m{}\033[0m".format("Invalid choice for branch."))
+
+    def prompt_for_batch(self, enrollment_no):
+        # Fetch the current department of the student
+        self.cursor.execute("SELECT department FROM student_details WHERE enrollment_no = %s;", (enrollment_no,))
+        current_dept = self.cursor.fetchone()[0]
+
+        # Map departments to their respective batch options
+        dept_to_batches = {
+            'SY1': ['A1', 'A2', 'A3'],
+            'SY2': ['B1', 'B2', 'B3'],
+            'SY3': ['C1', 'C2', 'C3']
+        }
+
+        # Determine the correct batch options based on the current department
+        available_batches = dept_to_batches.get(current_dept, [])
+        print("Select the new Batch based on the current Department:")
+        for idx, batch in enumerate(available_batches, 1):
+            print(f"{idx}. {batch}")
+
+        batch_choice = input("Enter your choice: ")
+        if batch_choice.isdigit() and 1 <= int(batch_choice) <= len(available_batches):
+            return available_batches[int(batch_choice) - 1]
+        else:
+            raise InvalidInputError("\033[91m{}\033[0m".format("Invalid choice for batch."))
+
+    def student_marks(self):
+        try:
+            enrollment_no = self.check_enrollment_no()
+            if enrollment_no is None:
+                print("Returning to admin menu...")  # Operation aborted
+                return
+
+            self.cursor.execute("SELECT COUNT(*) FROM student_details WHERE enrollment_no = %s;", (enrollment_no,))
+            if self.cursor.fetchone()[0] == 0:
+                raise EnrollmentError("\033[91m{}\033[0m".format("Invalid enrollment number!"))
+
+            while True:
+                test_table = self.select_test()
+                if not test_table:
+                    return  # Go back to main menu
+
+                subject_column = self.select_subject()
+                if not subject_column:
+                    continue  # Go back to test selection
+
+                if self.update_marks(test_table, subject_column, enrollment_no):
+                    continue  # Go back to test selection
+
+        except Exception as e:
+            self.cursor.connection.rollback()
+            print("\033[91m{}\033[0m".format(f"\nFailed to update student marks: {e}"))
+
+    def select_test(self):
+        while True:
+            print("\nSelect Test:")
+            print("1. T1\n2. T2\n3. T3\n4. T4\n5. Go back")
+            test_choice = input("Enter choice (1-5): ")
+
+            if test_choice == '5':
+                return None  # User chose to go back
+
+            test_map = {
+                '1': 't1_marks',
+                '2': 't2_marks',
+                '3': 't3_marks',
+                '4': 't4_marks',
+            }
+
+            if test_choice in test_map:
+                return test_map[test_choice]
+            else:
+                print("\033[91m{}\033[0m".format("\nInvalid choice."))
+
+    def select_subject(self):
+        subjects = ['ps', 'de', 'fcsp_1', 'fsd_1', 'etc', 'ci']
+        while True:
+            print("\nSelect Subject:")
+            for index, subject in enumerate(subjects, start=1):
+                print(f"{index}. {subject}")
+            print(f"{len(subjects) + 1}. Go back")
+            subject_choice = int(input("Enter choice: "))
+
+            if subject_choice == len(subjects) + 1:
+                return None  # User chose to go back
+
+            if 1 <= subject_choice <= len(subjects):
+                return subjects[subject_choice - 1]
+            else:
+                print("\033[91m{}\033[0m".format("\nInvalid choice."))
+
+    def update_marks(self, test_table, subject_column, enrollment_no):
+        while True:
+            try:
+                marks = int(input(f"\nEnter marks for {subject_column} (0-25): "))
+
+                if 0 <= marks <= 25:
+                    update_query = f"""
+                                    UPDATE {test_table}
+                                    SET {subject_column} = %s
+                                    WHERE enrollment_no = %s;
+                                    """
+                    self.cursor.execute(update_query, (marks, enrollment_no))
+                    self.cursor.connection.commit()
+                    print("\033[92m{}\033[0m".format("\nMarks updated successfully."))
+                    return True
+                else:
+                    raise InvalidMarksError("\033[91m{}\033[0m".format("Marks must be between 0 and 25!"))
+            except InvalidMarksError as e:
+                print(e)
+
+    def display_student(self):
+        try:
+            enrollment_no = self.check_enrollment_no()
+            if enrollment_no is None:
+                print("Returning to admin menu...")  # Operation aborted
+                return
+
+            while True:
+                print()
+                print("What would you like to view?")
+                print()
+                print("Enter 1 to view student details")
+                print("Enter 2 to view student marks")
+                print("Enter 3 to go back")
+                print()
+
+                print("Your choice: ", end="")
+                choice = int(input())
+
+                if choice == 1:
+                    self.details(enrollment_no)
+                elif choice == 2:
+                    self.marks(enrollment_no)
+                elif choice == 3:
+                    break
+                else:
+                    print("\033[91m{}\033[0m".format("Please enter valid choice (From 1 - 3)"))
+
+        except Exception as e:
+            print()
+            print(f"Failed to display: {e}")
+
+
 
 user = APM()
 user.login()
