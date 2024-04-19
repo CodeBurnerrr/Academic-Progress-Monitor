@@ -1092,10 +1092,397 @@ class Student:
 '''
 
 
+
+
+
+
+
+
+
+
 class Admin(Student):
     def __init__(self, cursor):
         self.cursor = cursor
         self.admin_login()
+
+    def subject_wise_graph(self, Enrollment_no, subject):
+
+        if subject == 'FCSP-1':
+            sub_name = '\"fcsp_1\"'
+        elif subject == 'FSD-1':
+            sub_name = '\"fsd_1\"'
+        else:
+            sub_name = subject
+
+        mark_list = []
+        average_list = []
+
+
+        tables = ["t1_marks", "t2_marks", "t3_marks", "t4_marks"]
+        for table in tables:
+            self.cursor.execute(f"SELECT {sub_name} FROM {table} WHERE enrollment_no = {Enrollment_no};")
+            mark = self.cursor.fetchone()
+            mark_list.append(mark[0])
+
+        for table in tables:
+            self.cursor.execute(f"SELECT {sub_name} FROM {table}")
+            marks = self.cursor.fetchall()
+            avg = sum(mark[0] for mark in marks) / len(marks)
+            average_list.append(int(avg))
+
+        x = tables
+        y = mark_list
+        avg_y = average_list
+
+        plt.figure(figsize=(8, 6))
+
+        plt.plot(x, y, linestyle='-', color='blue',
+                 label='Individual Marks')
+
+        for i, mark in enumerate(y):
+            color = 'r' if mark < 9 else 'b'
+            marker = '*' if mark < 9 else 'o'
+            plt.plot(x[i], y[i], marker=marker, linestyle='None', color=color, markersize=12,
+                     markeredgecolor='black', zorder=3)
+
+        plt.plot(x, avg_y, linestyle='--', color='green', marker='s', markersize=8,
+                 label='Average Marks')
+
+
+        plt.title(f'Performance Score ( {subject} )')
+        plt.xlabel('Test')
+        plt.ylabel('Marks')
+
+
+        plt.ylim(0, 30)
+
+
+        plt.xticks(rotation=45)
+        plt.grid(True)
+
+
+        legend_handles = [
+            plt.Line2D([0], [0], marker='o', color='w', markerfacecolor='blue', markersize=8, label='Pass'),
+            plt.Line2D([0], [0], marker='*', color='w', markerfacecolor='red', markersize=8, label='Fail'),
+            plt.Line2D([0], [0], marker='s', color='w', markerfacecolor='green', markersize=8,
+                       label='Average Marks')
+        ]
+        plt.legend(handles=legend_handles, loc='lower right')
+
+
+        for i, txt in enumerate(y):
+            plt.annotate(txt, (x[i], y[i]), textcoords="offset points", xytext=(8, 0),
+                         ha='left')
+
+        # Show the average marks on the plot
+        for i, txt in enumerate(avg_y):
+            plt.annotate(f'{txt}', (x[i], avg_y[i]), textcoords="offset points", xytext=(-7, -15),
+                         ha='left', color='green')
+
+        plt.tight_layout()
+        plt.show()
+
+    def test_wise_graph(self, Enrollment_no, test):
+        self.cursor.execute(f"SELECT * FROM {test} WHERE enrollment_no = {Enrollment_no};")
+        mark = self.cursor.fetchone()
+
+        test_scores = mark[1:7]
+        subjects = ["PS", "DE", "FCSP-1", "FSD-1", "ETC", "CI"]
+
+        total_score = sum(test_scores)
+
+
+        max_score = max(test_scores)
+        min_score = min(test_scores)
+        max_score_indices = [i for i, score in enumerate(test_scores) if score == max_score]
+        min_score_indices = [i for i, score in enumerate(test_scores) if score == min_score]
+
+
+        explode = [0] * len(subjects)
+
+
+        for i in max_score_indices + min_score_indices:
+            explode[i] = 0.2
+
+
+        colors = ['blue','yellow','pink','skyblue','orange', 'purple']
+        for i in max_score_indices:
+            colors[i] = 'green'
+        for i in min_score_indices:
+            colors[i] = 'red'
+
+
+        plt.figure(figsize=(8, 8))
+        patches, texts, autotexts = plt.pie(test_scores, labels=subjects, autopct='%1.1f%%',
+                                            startangle=140, explode=explode, colors=colors)
+
+
+        for i in max_score_indices + min_score_indices:
+            patches[i].set_edgecolor('black')
+            patches[i].set_linewidth(2)
+
+
+        legend_handles = []
+        if max_score_indices:
+            legend_handles.append(
+                plt.Line2D([0], [0], marker='o', color='w', markerfacecolor='green', markersize=10,
+                           label='Max Contributor'))
+        if min_score_indices:
+            legend_handles.append(
+                plt.Line2D([0], [0], marker='o', color='w', markerfacecolor='red', markersize=10,
+                           label='Min Contributor'))
+
+
+        legend_handles.append(plt.Line2D([0], [0], color='black', markerfacecolor='white', markersize=0,
+                                         label=f'Total Score: {total_score}/150'))
+
+        legend_handles.append(plt.Line2D([0], [0], color='black', markerfacecolor='white', markersize=0,
+                                         label=f'Percentage: {round((total_score / 150) * 100, 2)}%'))
+
+        plt.legend(handles=legend_handles, loc='upper right')
+
+        plt.title(f'Test Scores Distribution ( {test} )', y=1.05)
+        plt.axis('equal')
+        plt.show()
+
+    def stud_progress(self, Enrollment_no):
+
+        while True:
+            print()
+            print("--------------------------------------------------------------------------------------------------------------------------")
+            print("How would you like to view progress graph: ")
+            print()
+            print("1. Subject wise report")
+            print("2. Test wise report")
+            print("3. Cumulative report")
+            print("Enter 0 to go back")
+            print("--------------------------------------------------------------------------------------------------------------------------")
+            print()
+            print("Your choice: ", end ="")
+
+            choice = input()
+
+
+            if choice == '1':
+                while True:
+                    print()
+                    print("--------------------------------------------------------------------------------------------------------------------------")
+                    print("Choose the subject: ")
+                    print("1. PS")
+                    print("2. DE")
+                    print("3. FCSP-1")
+                    print("4. FSD-1")
+                    print("5. ETC")
+                    print("6. CI")
+                    print("Enter 7 to go back")
+                    print("--------------------------------------------------------------------------------------------------------------------------")
+                    print()
+
+                    sub = int(input())
+
+                    if sub == 1:
+                        print("Showing........................")
+                        self.subject_wise_graph(Enrollment_no,'PS')
+                    elif sub == 2:
+                        print("Showing........................")
+                        self.subject_wise_graph(Enrollment_no,'DE')
+                    elif sub == 3:
+                        print("Showing........................")
+                        self.subject_wise_graph(Enrollment_no, 'FCSP-1')
+                    elif sub == 4:
+                        print("Showing........................")
+                        self.subject_wise_graph(Enrollment_no,'FSD-1')
+                    elif sub == 5:
+                        print("Showing........................")
+                        self.subject_wise_graph(Enrollment_no, 'ETC')
+                    elif sub == 6:
+                        print("Showing........................")
+                        self.subject_wise_graph(Enrollment_no,'CI')
+                    elif sub == 7:
+                        break
+                    else:
+                        print("\033[91m{}\033[0m".format('Please select correct option......'))
+
+            elif choice == '2':
+                while True:
+                    print()
+                    print("--------------------------------------------------------------------------------------------------------------------------")
+                    print("Choose which test report you want to see: ")
+                    print("1. T1")
+                    print("2. T2")
+                    print("3. T3")
+                    print("4. T4")
+                    print("Enter 0 to go back...")
+                    print("--------------------------------------------------------------------------------------------------------------------------")
+                    print()
+
+                    test_choice = (input())
+
+                    if test_choice == '1':
+                        print("\033[92m{}\033[0m".format("Showing........................"))
+                        self.test_wise_graph(Enrollment_no,'t1_marks')
+                    elif test_choice == '2':
+                        print("\033[92m{}\033[0m".format("Showing........................"))
+                        self.test_wise_graph(Enrollment_no, 't2_marks')
+                    elif test_choice == '3':
+                        print("\033[92m{}\033[0m".format("Showing........................"))
+                        self.test_wise_graph(Enrollment_no, 't3_marks')
+                    elif test_choice == '4':
+                        print("\033[92m{}\033[0m".format("Showing........................"))
+                        self.test_wise_graph(Enrollment_no, 't4_marks')
+                    elif test_choice == '0':
+                        break
+                    else:
+                        print("\033[91m{}\033[0m".format("Please select correct option"))
+
+
+            elif choice == '3':
+                while True:
+                    print()
+                    print(
+                        "--------------------------------------------------------------------------------------------------------------------------")
+                    print("Choose how would you like to see: ")
+                    print("1. Test-Wise Cumulative Analysis")
+                    print("2. Individual vs Collective Average Analysis")
+                    print("Enter 0 to go back...")
+                    print(
+                        "--------------------------------------------------------------------------------------------------------------------------")
+                    print()
+
+                    print("Your Choice: ", end="")
+                    choice = input()
+                    print()
+
+                    x = ["PS", "DE", "FCSP-1", "FSD-1", "ETC", "CI"]
+                    y1 = []
+                    y2 = []
+                    y3 = []
+                    y4 = []
+
+                    tables = ["t1_marks", "t2_marks", "t3_marks", "t4_marks"]
+
+                    for table in tables:
+                        self.cursor.execute(
+                            f"SELECT * FROM {table} WHERE enrollment_no = {Enrollment_no};")
+                        mark = self.cursor.fetchone()
+
+                        if (table == 't1_marks'):
+                            y1 = mark[1:7]
+                        elif (table == 't2_marks'):
+                            y2 = mark[1:7]
+                        elif (table == 't3_marks'):
+                            y3 = mark[1:7]
+                        else:
+                            y4 = mark[1:7]
+
+                    if choice == '1':
+
+                        fig = plt.figure(figsize=(10, 6))
+                        ax = plt.gca()
+
+                        ax.plot(x, y1, marker='o', color='blue', label='T1')
+                        ax.plot(x, y2, marker='s', color='green', label='T2')
+                        ax.plot(x, y3, marker='^', color='magenta', label='T3')
+                        ax.plot(x, y4, marker='*', color='purple', label='T4')
+
+                        # Annotate starting points with test names
+                        ax.text(x[0], y1[0], 'T1', color='blue', fontsize=12, ha='right', va='bottom')
+                        ax.text(x[0], y2[0], 'T2', color='green', fontsize=12, ha='right', va='bottom')
+                        ax.text(x[0], y3[0], 'T3', color='magenta', fontsize=12, ha='right', va='bottom')
+                        ax.text(x[0], y4[0], 'T4', color='purple', fontsize=12, ha='right', va='bottom')
+
+                        ax.set_title('Test Report')
+                        ax.set_xlabel('Subject')
+                        ax.set_ylabel('Marks')
+
+                        ax.set_xticks(np.arange(len(x)))
+                        ax.set_xticklabels(x, rotation=45)
+                        ax.grid(True)  # Show grid
+
+                        ax.set_ylim(0, 30)
+
+                        legend_handles = [
+                            Line2D([0], [0], color='blue', lw=2, label='T1'),
+                            Line2D([0], [0], color='green', lw=2, label='T2'),
+                            Line2D([0], [0], color='magenta', lw=2, label='T3'),
+                            Line2D([0], [0], color='purple', lw=2, label='T4'),
+                        ]
+                        ax.legend(handles=legend_handles, loc='lower right')
+
+                        plt.tight_layout()
+                        plt.show()
+
+                    elif choice == '2':
+
+                        # Calculate average marks subject-wise for current student
+                        average_marks_student = [(np.mean([y1[i], y2[i], y3[i], y4[i]])) for i in range(len(x))]
+
+                        z1 = []
+                        z2 = []
+                        z3 = []
+                        z4 = []
+                        sub_ = ['ps','de','fcsp_1','fsd_1','etc','ci']
+                        for table in tables:
+                            for sub in sub_:
+                                mark_list = []
+                                self.cursor.execute(
+                                    f"SELECT \"{sub}\" FROM {table}")
+                                mark = self.cursor.fetchall()
+                                for i in range(len(mark)):
+                                    mark_list += [mark[i][0]]
+
+                                if(table == 't1_marks'):
+                                    z1.append(np.mean(mark_list))
+                                elif table == 't2_marks':
+                                    z2.append(np.mean(mark_list))
+                                elif table == 't3_marks':
+                                    z3.append(np.mean(mark_list))
+                                elif table == 't4_marks':
+                                    z4.append(np.mean(mark_list))
+
+                        overall_average_marks = [(np.mean([z1[i], z2[i], z3[i], z4[i]])) for i in range(len(x))]
+
+                        # Plot double bar graph for average marks subject-wise
+                        plt.figure(figsize=(12, 6))
+                        bar_width = 0.35
+                        index = np.arange(len(x))
+
+                        bar1 = plt.bar(index, average_marks_student, bar_width, color='lightblue', label='Your average')
+                        bar2 = plt.bar(index + bar_width, overall_average_marks, bar_width, color='orange',
+                                       label='Overall Average')
+
+                        plt.title('Average Marks Subject-wise')
+                        plt.xlabel('Subject')
+                        plt.ylabel('Average Marks')
+                        plt.xticks(index + bar_width / 2, x, rotation=45)
+                        plt.legend()
+                        plt.grid(True)
+
+                        # Annotate each bar with its corresponding average marks for the current student
+                        for bar, mark in zip(bar1, average_marks_student):
+                            plt.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.2, round(mark, 2),
+                                     ha='center', va='bottom')
+
+                        # Annotate each bar with the overall average marks for all students
+                        for bar, mark in zip(bar2, overall_average_marks):
+                            plt.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.2, round(mark, 2),
+                                     ha='center', va='bottom')
+
+                        plt.ylim(0, 30)  # Set y-axis limits
+                        plt.tight_layout()
+                        plt.show()
+
+                    elif choice == '0':
+                        break
+
+                    else:
+                        print("\033[91m{}\033[0m".format("Please choose correct option....."))
+
+            elif choice == '0':
+                break
+
+            else:
+                print("\033[91m{}\033[0m".format("Please choose right option....."))
 
     def admin_login(self):
         attempts = 0  # Counter for tracking login attempts
@@ -1149,11 +1536,12 @@ class Admin(Student):
             else:
                 exit()
 
+
+
     def admin_menu(self):
         while True:
             print()
-            print(
-                "--------------------------------------------------------------------------------------------------------------------------")
+            print("--------------------------------------------------------------------------------------------------------------------------")
             print("1. Add Student")
             print("2. Remove Student")
             print("3. Update Student Details")
@@ -1161,8 +1549,7 @@ class Admin(Student):
             print("5. Display Student Information")
             print("6. To view student progess report")
             print("7. Go Back")
-            print(
-                "--------------------------------------------------------------------------------------------------------------------------")
+            print("--------------------------------------------------------------------------------------------------------------------------")
             print()
             choice = input("Your choice: ")
             if choice == '1':
@@ -1204,6 +1591,7 @@ class Admin(Student):
                 break
             else:
                 print("\033[91m{}\033[0m".format("Please enter a valid choice."))
+
 
     def display_faculty_data(self, email):
         self.cursor.execute("SELECT email, name, shortname, department, subject FROM faculty_details WHERE email = %s;",
@@ -1264,6 +1652,7 @@ class Admin(Student):
         print("\033[91m{}\033[0m".format("\nFailed to enter a valid enrollment number in 3 attempts."))
         return None
 
+
     def add_student(self):
         try:
 
@@ -1275,14 +1664,14 @@ class Admin(Student):
                     name = input("Enter Student Name: ")
                     # Checking if the name consists of alphabets and spaces only
                     if not all(x.isalpha() or x.isspace() for x in name):
-                        raise InvalidInputError(
-                            "\033[91m{}\033[0m".format("Name should consist of alphabets and spaces only."))
+                        raise InvalidInputError("\033[91m{}\033[0m".format("Name should consist of alphabets and spaces only."))
                     else:
                         break
 
                 except InvalidInputError as e:
                     print()
                     print(f"Failed to add student: {e}")
+
 
             ############################################################################################################
 
@@ -1357,6 +1746,7 @@ class Admin(Student):
                     print()
                     print(f"Failed to add student: {e}")
 
+
             ############################################################################################################
 
             roll_no = self.generate_roll_no(batch)
@@ -1375,8 +1765,7 @@ class Admin(Student):
                         print("Valid email address!")
                         break
                     else:
-                        raise InvalidInputError(
-                            "\033[91m{}\033[0m".format("Invalid email address. Please enter a valid email address."))
+                        raise InvalidInputError("\033[91m{}\033[0m".format("Invalid email address. Please enter a valid email address."))
 
                 except InvalidInputError as e:
                     print()
@@ -1406,6 +1795,7 @@ class Admin(Student):
                 query = f"""INSERT INTO {table} (enrollment_no) VALUES (%s);"""
                 self.cursor.execute(query, (enrollment_no,))
 
+
             # Committing the transaction to the database
             self.cursor.connection.commit()
             print()
@@ -1422,47 +1812,47 @@ class Admin(Student):
             print(f"An error occurred: {e}")
 
     def remove_student(self):
-        try:
-            enrollment_no = self.check_enrollment_no()
-            if enrollment_no is None:
-                print("Returning to admin menu...")  # Operation aborted
-                return
+            try:
+                enrollment_no = self.check_enrollment_no()
+                if enrollment_no is None:
+                    print("Returning to admin menu...")  # Operation aborted
+                    return
 
-            # SQL Query to delete the student record from the database
-            query = "DELETE FROM student_details WHERE enrollment_no = %s;"
+                # SQL Query to delete the student record from the database
+                query = "DELETE FROM student_details WHERE enrollment_no = %s;"
 
-            # Checking if the student exists before attempting to delete
-            self.cursor.execute("SELECT * FROM student_details WHERE enrollment_no = %s;", (enrollment_no,))
-            if self.cursor.fetchone() is None:
-                print()
-                print("\033[91m{}\033[0m".format("No student found with the given enrollment number."))
-                return
+                # Checking if the student exists before attempting to delete
+                self.cursor.execute("SELECT * FROM student_details WHERE enrollment_no = %s;", (enrollment_no,))
+                if self.cursor.fetchone() is None:
+                    print()
+                    print("\033[91m{}\033[0m".format("No student found with the given enrollment number."))
+                    return
 
-            # Executing the delete query
-            self.cursor.execute(query, (enrollment_no,))
+                # Executing the delete query
+                self.cursor.execute(query, (enrollment_no,))
 
-            for table_name in ['t1_marks', 't2_marks', 't3_marks', 't4_marks', 'total_marks', 'login_credentials']:
-                query_del = f"""
+                for table_name in ['t1_marks', 't2_marks', 't3_marks', 't4_marks', 'total_marks', 'login_credentials']:
+                    query_del = f"""
                             DELETE FROM {table_name} WHERE enrollment_no = %s;
                             """
-                self.cursor.execute(query_del, (enrollment_no,))
+                    self.cursor.execute(query_del, (enrollment_no,))
 
-            # Committing the transaction to the database
-            self.cursor.connection.commit()
-            print()
-            print("\033[91m{}\033[0m".format("Student removed successfully."))
-        except Exception as e:
-            # Rolling back in case of error
-            self.cursor.connection.rollback()
-            print()
-            print(f"An error occurred: {e}")
+                # Committing the transaction to the database
+                self.cursor.connection.commit()
+                print()
+                print("\033[91m{}\033[0m".format("Student removed successfully."))
+            except Exception as e:
+                # Rolling back in case of error
+                self.cursor.connection.rollback()
+                print()
+                print(f"An error occurred: {e}")
 
     def update_student(self):
         while True:
             try:
                 enrollment_no = self.check_enrollment_no()
                 if enrollment_no is None:
-                    print("\033[91m{}\033[0m".format("Returning to admin menu..."))  # Operation aborted
+                    print("\033[91m{}\033[0m".format("Returning to admin menu...") ) # Operation aborted
                     return
 
                 self.cursor.execute("SELECT COUNT(*) FROM student_details WHERE enrollment_no = %s;", (enrollment_no,))
@@ -1476,6 +1866,7 @@ class Admin(Student):
                 self.cursor.connection.rollback()
                 print()
                 print(f"Failed to update student detail: {e}")
+
 
     def prompt_for_update(self, enrollment_no):
         while True:
@@ -1498,19 +1889,19 @@ class Admin(Student):
             print()
             choice = input("Enter your choice (1-6): ")
 
+
             if choice == '1':
 
                 new_value = input("Enter the new Name: ")
                 if not all(x.isalpha() or x.isspace() for x in new_value):
-                    raise InvalidInputError(
-                        "\033[91m{}\033[0m".format("Name should consist of alphabets and spaces only."))
+                    raise InvalidInputError("\033[91m{}\033[0m".format("Name should consist of alphabets and spaces only."))
                 column = 'name'
                 self.execute_update(column, new_value, enrollment_no, flag)
                 print()
                 print("\033[92m{}\033[0m".format("Update operation completed successfully."))
 
             elif choice == '2':
-                new_department, new_batch, new_branch = self.prompt_for_department_and_batch_and_branch()
+                new_department, new_batch , new_branch = self.prompt_for_department_and_batch_and_branch()
                 if new_batch == old_batch:
                     flag = True
                 self.execute_update('department', new_department, enrollment_no, flag)
@@ -1520,8 +1911,7 @@ class Admin(Student):
                 print("\033[92m{}\033[0m".format("Update operation completed successfully."))
 
             elif choice == '3':
-                self.cursor.execute(f"SELECT department from student_details WHERE enrollment_no = %s;",
-                                    (enrollment_no,))
+                self.cursor.execute(f"SELECT department from student_details WHERE enrollment_no = %s;", (enrollment_no,))
                 depart = self.cursor.fetchone()[0]
 
                 new_value = self.prompt_for_branch(depart)
@@ -1564,6 +1954,8 @@ class Admin(Student):
                 print()
                 print("\033[91m{}\033[0m".format("Invalid choice. Operation cancelled."))
 
+
+
     def execute_update(self, column, new_value, enrollment_no, flag):
         if flag != True:
             if column == 'batch':
@@ -1575,6 +1967,7 @@ class Admin(Student):
         query = f"UPDATE student_details SET {column} = %s WHERE enrollment_no = %s;"
         self.cursor.execute(query, (new_value, enrollment_no))
         self.cursor.connection.commit()
+
 
     def prompt_for_department_and_batch_and_branch(self):
         print()
@@ -1614,6 +2007,7 @@ class Admin(Student):
         else:
             raise InvalidInputError("\033[91m{}\033[0m".format("Invalid choice for batch."))
 
+
     def prompt_for_branch_based_on_department(self, department):
         print()
         # Branch selection logic
@@ -1631,6 +2025,8 @@ class Admin(Student):
             return branch[int(branch_choice) - 1]
         else:
             raise InvalidInputError("\033[91m{}\033[0m".format("Invalid choice for branch."))
+
+
 
     def prompt_for_batch(self, enrollment_no):
         # Fetch the current department of the student
@@ -1682,6 +2078,7 @@ class Admin(Student):
         except Exception as e:
             self.cursor.connection.rollback()
             print("\033[91m{}\033[0m".format(f"\nFailed to update student marks: {e}"))
+
 
     def select_test(self):
         while True:
@@ -1741,14 +2138,16 @@ class Admin(Student):
             except InvalidMarksError as e:
                 print(e)
 
-    def display_student(self):
-        try:
-            enrollment_no = self.check_enrollment_no()
-            if enrollment_no is None:
-                print("Returning to admin menu...")  # Operation aborted
-                return
 
-            while True:
+
+    def display_student(self):
+     try:
+        enrollment_no = self.check_enrollment_no()
+        if enrollment_no is None:
+            print("Returning to admin menu...")  # Operation aborted
+            return
+
+        while True:
                 print()
                 print("What would you like to view?")
                 print()
@@ -1769,10 +2168,9 @@ class Admin(Student):
                 else:
                     print("\033[91m{}\033[0m".format("Please enter valid choice (From 1 - 3)"))
 
-        except Exception as e:
-            print()
-            print(f"Failed to display: {e}")
-
+     except Exception as e:
+        print()
+        print(f"Failed to display: {e}")
 
 
 user = APM()
