@@ -12,7 +12,7 @@ The Academic Progress Monitor is a Python application that leverages the robustn
 
 ## Installation
  ### Prerequisites:
- 1. Python (3.x recommended)
+ 1. Python (3.8 or above recommended)
  2. pip (Python package installer)
  3. PostgreSQL (Ensure PostgreSQL is installed and running on your system)
 
