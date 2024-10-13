@@ -48,7 +48,7 @@ Configure the database connection settings in main.py specifying your PostgreSQL
 + Utilize the visualization features to generate graphical representations of the data stored in PostgreSQL.
 
 ## License
-This project is licensed under the MIT License - see the [LICENSE](license) file for details.
+This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
 
 ## Authors
 - [Dhruv Mehta](https://github.com/CodeBurnerrr) - CodeBurnerrr
